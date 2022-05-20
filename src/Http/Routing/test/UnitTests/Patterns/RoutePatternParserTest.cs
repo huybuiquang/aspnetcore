@@ -320,6 +320,18 @@ public class RoutePatternParameterParserTest
         Assert.Equal<RoutePattern>(expected, actual, new RoutePatternEqualityComparer());
     }
 
+    [Fact]
+    public void sdfsdf()
+    {
+        RoutePatternParser.Parse("{**:int}");
+    }
+
+    [Fact]
+    public void sdfsdf1()
+    {
+        RoutePatternParser.Parse("{:int}");
+    }
+
     [Theory]
     [InlineData(@"{p1:regex(^\d{{3}}-\d{{3}}-\d{{4}}$)}", @"regex(^\d{3}-\d{3}-\d{4}$)")] // ssn
     [InlineData(@"{p1:regex(^\d{{1,2}}\/\d{{1,2}}\/\d{{4}}$)}", @"regex(^\d{1,2}\/\d{1,2}\/\d{4}$)")] // date
