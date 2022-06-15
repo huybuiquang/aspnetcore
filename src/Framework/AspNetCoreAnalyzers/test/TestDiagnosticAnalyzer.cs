@@ -85,7 +85,6 @@ public class TestDiagnosticAnalyzerRunner : DiagnosticAnalyzerRunner
             LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-
     private static AdhocWorkspace CreateWorkspace()
     {
         var exportProvider = ExportProviderFactory.Value.CreateExportProvider();
