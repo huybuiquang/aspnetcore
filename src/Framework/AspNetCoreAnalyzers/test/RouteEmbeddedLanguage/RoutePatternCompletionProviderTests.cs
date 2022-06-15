@@ -128,6 +128,46 @@ namespace Microsoft.AspNetCore.Builder
     }
 
     [Fact]
+    public async Task Insertion_ParameterOpenBrace_EndpointMapGet_HasMethod_ReturnDelegateParameterItem()
+    {
+        // Arrange & Act
+        var result = await GetCompletionsAndServiceAsync(@"
+using System;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Builder;
+
+class Program
+{
+    static void Main()
+    {
+        EndpointRouteBuilderExtensions.MapGet(null, @""{$$"", ExecuteGet);
+    }
+
+    static string ExecuteGet(string id)
+    {
+        return """";
+    }
+}
+
+namespace Microsoft.AspNetCore.Builder
+{
+    public static class EndpointRouteBuilderExtensions
+    {
+        public static RouteHandlerBuilder MapGet(this IEndpointRouteBuilder endpoints, [StringSyntax(""Route"")] string pattern, Delegate handler)
+        {
+            return null;
+        }
+    }
+}
+");
+
+        // Assert
+        Assert.Collection(
+            result.Completions.Items,
+            i => Assert.Equal("id", i.DisplayText));
+    }
+
+    [Fact]
     public async Task Insertion_ParameterOpenBrace_EndpointMapGet_NullDelegate_ReturnDelegateParameterItem()
     {
         // Arrange & Act

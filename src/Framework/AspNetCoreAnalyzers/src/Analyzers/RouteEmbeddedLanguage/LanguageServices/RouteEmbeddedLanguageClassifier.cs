@@ -142,7 +142,6 @@ internal class RouteEmbeddedLanguageClassifier : IAspNetCoreEmbeddedLanguageClas
         }
     }
 
-
     // IAspNetCoreEmbeddedLanguageClassifier is internal and tests don't have access to it. Provide a way to get its assembly.
     // Just for unit tests. Don't use in production code.
     internal static class TestAccessor

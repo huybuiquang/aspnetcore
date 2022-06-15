@@ -13,7 +13,6 @@ using static RoutePatternHelpers;
 
 using RoutePatternToken = EmbeddedSyntaxToken<RoutePatternKind>;
 
-
 internal struct RoutePatternLexer
 {
     public readonly AspNetCoreVirtualCharSequence Text;

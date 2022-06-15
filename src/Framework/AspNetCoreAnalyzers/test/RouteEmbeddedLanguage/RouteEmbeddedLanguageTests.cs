@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Analyzer.Testing;
 using Microsoft.AspNetCore.Analyzers.RenderTreeBuilder;
 using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Classification;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.Text;
 using Xunit.Abstractions;
@@ -28,11 +29,10 @@ public class RouteEmbeddedLanguageTests
         Assert.True(spans.Length == 1);
 
         var actual = await Runner.GetClassificationSpansAsync(spans.Single(), rewrittenCode);
+        var actualOrdered = actual.OrderBy(t1 => t1.TextSpan.Start).ToList();
+        var actualFormatted = actualOrdered.Select(a => new FormattedClassification(rewrittenCode.Substring(a.TextSpan.Start, a.TextSpan.Length), a.ClassificationType)).ToArray();
 
-        foreach (var item in actual)
-        {
-            _output.WriteLine(item.ClassificationType + " " + item.TextSpan);
-        }
+        Assert.Equal(expected, actualFormatted);
     }
 
     public RouteEmbeddedLanguageTests(ITestOutputHelper output)
@@ -41,32 +41,7 @@ public class RouteEmbeddedLanguageTests
     }
 
     [Fact]
-    public async Task RenderTreeBuilderInvocationWithNonConstantArgument_ProducesDiagnostics()
-    {
-        await TestAsync(
-@"
-using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
-
-class Program
-{
-    [StringSyntax(StringSyntaxAttribute.Regex)]
-    private string field;
-
-    void Goo()
-    {
-        [|this.field = @""$\a(?#comment)"";|]
-    }
-}" + EmbeddedLanguagesTestConstants.StringSyntaxAttributeCodeCSharp,
-Field("field"),
-Regex.Anchor("$"),
-Regex.OtherEscape("\\"),
-Regex.OtherEscape("a"),
-Regex.Comment("(?#comment)"));
-    }
-
-    [Fact]
-    public async Task sdfsdfsdf()
+    public async Task AttributeOnField_Classified()
     {
         await TestAsync(
 @"
@@ -80,13 +55,13 @@ class Program
 
     void Goo()
     {
-        [|this.field = @""{id?}"";|]
+        this.field = [|@""{id?}""|];
     }
 }" + EmbeddedLanguagesTestConstants.StringSyntaxAttributeCodeCSharp,
-Field("field"),
-Regex.Anchor("$"),
-Regex.OtherEscape("\\"),
-Regex.OtherEscape("a"),
-Regex.Comment("(?#comment)"));
+Verbatim(@"@""{id?}"""),
+Regex.CharacterClass("{"),
+Parameter("id"),
+Regex.Anchor("?"),
+Regex.CharacterClass("}"));
     }
 }

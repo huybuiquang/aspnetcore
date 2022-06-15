@@ -308,18 +308,7 @@ internal static class RouteStringSyntaxDetector
             }
 
             // Get the symbol as long if it's not null or if there is only one candidate symbol
-            var symbolInfo = semanticModel.GetSymbolInfo(argumentList.Parent, cancellationToken);
-            var symbol = symbolInfo.Symbol;
-            if (symbol == null && symbolInfo.CandidateSymbols.Length == 1)
-            {
-                symbol = symbolInfo.CandidateSymbols[0];
-            }
-
-            var method = symbol as IMethodSymbol;
-            if (method == null)
-            {
-                return null;
-            }
+            var method = GetMethodInfo(semanticModel, argumentList.Parent, cancellationToken);
 
             if (!method.Name.StartsWith("Map", StringComparison.Ordinal))
             {
@@ -363,13 +352,21 @@ internal static class RouteStringSyntaxDetector
 
             var item = argumentList.Arguments[delegateIndex];
 
-            var delegateSymbolInfo = semanticModel.GetSymbolInfo(item.Expression, cancellationToken);
-            if (delegateSymbolInfo.Symbol != null && delegateSymbolInfo.Symbol.Kind == SymbolKind.Method && delegateSymbolInfo.Symbol is IMethodSymbol delegateMethod)
-            {
-                return delegateMethod;
-            }
+            return GetMethodInfo(semanticModel, item.Expression, cancellationToken);
         }
 
         return null;
+    }
+
+    private static IMethodSymbol? GetMethodInfo(SemanticModel semanticModel, SyntaxNode syntaxNode, CancellationToken cancellationToken)
+    {
+        var delegateSymbolInfo = semanticModel.GetSymbolInfo(syntaxNode, cancellationToken);
+        var delegateSymbol = delegateSymbolInfo.Symbol;
+        if (delegateSymbol == null && delegateSymbolInfo.CandidateSymbols.Length == 1)
+        {
+            delegateSymbol = delegateSymbolInfo.CandidateSymbols[0];
+        }
+
+        return delegateSymbol as IMethodSymbol;
     }
 }
