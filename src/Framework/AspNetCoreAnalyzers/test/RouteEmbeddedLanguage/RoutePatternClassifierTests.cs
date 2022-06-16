@@ -15,7 +15,7 @@ using static Microsoft.CodeAnalysis.Editor.UnitTests.Classification.FormattedCla
 
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
-public class RouteEmbeddedLanguageTests
+public class RoutePatternClassifierTests
 {
     private readonly ITestOutputHelper _output;
 
@@ -35,7 +35,7 @@ public class RouteEmbeddedLanguageTests
         Assert.Equal(expected, actualFormatted);
     }
 
-    public RouteEmbeddedLanguageTests(ITestOutputHelper output)
+    public RoutePatternClassifierTests(ITestOutputHelper output)
     {
         _output = output;
     }

@@ -35,7 +35,7 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
             // default value = default
             // constraint argument = default
 
-            Helper.MapRoute("foo/{*path::int}"); // catch all
+            Helper.MapRoute("foo/{*path:int}"); // catch all
             Helper.MapRoute("foo/{**path}"); // catch all without escape
             Helper.MapRoute("{controller}/{action}/{id?}"); // optional segment
             Helper.MapRoute("files/{filename}.{ext?}"); // optional segment after .

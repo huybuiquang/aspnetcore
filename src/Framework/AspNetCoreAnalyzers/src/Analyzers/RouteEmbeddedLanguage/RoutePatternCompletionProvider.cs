@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
@@ -11,14 +12,15 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using RoutePatternToken = Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common.EmbeddedSyntaxToken<Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePatternKind>;
 
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
 [ExportCompletionProvider(nameof(RoutePatternCompletionProvider), LanguageNames.CSharp)]
+[Shared]
 public class RoutePatternCompletionProvider : CompletionProvider
 {
     private const string StartKey = nameof(StartKey);
@@ -67,6 +69,8 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override Task<CompletionChange> GetChangeAsync(Document document, CompletionItem item, char? commitKey, CancellationToken cancellationToken)
     {
+        Debugger.Launch();
+
         // These values have always been added by us.
         var startString = item.Properties[StartKey];
         var lengthString = item.Properties[LengthKey];

@@ -61,6 +61,7 @@ class Program
         Assert.NotEmpty(result.Completions.Items);
         Assert.Equal("alpha", result.Completions.Items[0].DisplayText);
 
+        // Getting description is currently broken in Roslyn.
         //var description = await result.Service.GetDescriptionAsync(result.Document, result.Completions.Items[0]);
         //Assert.Equal("int", description.Text);
     }
