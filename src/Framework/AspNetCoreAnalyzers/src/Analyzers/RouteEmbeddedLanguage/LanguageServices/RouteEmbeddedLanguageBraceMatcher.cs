@@ -13,7 +13,7 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.LanguageServices;
 [ExportAspNetCoreEmbeddedLanguageBraceMatcher(name: "Route", language: LanguageNames.CSharp)]
 internal class RouteEmbeddedLanguageBraceMatcher : IAspNetCoreEmbeddedLanguageBraceMatcher
 {
-    public AspNetBraceMatchingResult? FindBraces(SemanticModel semanticModel, SyntaxToken token, int position, CancellationToken cancellationToken)
+    public AspNetCoreBraceMatchingResult? FindBraces(SemanticModel semanticModel, SyntaxToken token, int position, CancellationToken cancellationToken)
     {
         var virtualChars = AspNetCoreCSharpVirtualCharService.Instance.TryConvertToVirtualChars(token);
         var tree = RoutePatternParser.TryParse(virtualChars);
@@ -25,7 +25,7 @@ internal class RouteEmbeddedLanguageBraceMatcher : IAspNetCoreEmbeddedLanguageBr
         return GetMatchingBraces(tree, position);
     }
 
-    private static AspNetBraceMatchingResult? GetMatchingBraces(RoutePatternTree tree, int position)
+    private static AspNetCoreBraceMatchingResult? GetMatchingBraces(RoutePatternTree tree, int position)
     {
         var virtualChar = tree.Text.Find(position);
         if (virtualChar == null)
@@ -42,13 +42,13 @@ internal class RouteEmbeddedLanguageBraceMatcher : IAspNetCoreEmbeddedLanguageBr
         };
     }
 
-    private static AspNetBraceMatchingResult? FindParameterBraces(RoutePatternTree tree, AspNetCoreVirtualChar ch)
+    private static AspNetCoreBraceMatchingResult? FindParameterBraces(RoutePatternTree tree, AspNetCoreVirtualChar ch)
     {
         var node = FindParameterNode(tree.Root, ch);
         return node == null ? null : CreateResult(node.OpenBraceToken, node.CloseBraceToken);
     }
 
-    private static AspNetBraceMatchingResult? FindPolicyParens(RoutePatternTree tree, AspNetCoreVirtualChar ch)
+    private static AspNetCoreBraceMatchingResult? FindPolicyParens(RoutePatternTree tree, AspNetCoreVirtualChar ch)
     {
         var node = FindPolicyFragmentEscapedNode(tree.Root, ch);
         return node == null ? null : CreateResult(node.OpenParenToken, node.CloseParenToken);
@@ -85,10 +85,10 @@ internal class RouteEmbeddedLanguageBraceMatcher : IAspNetCoreEmbeddedLanguageBr
         return null;
     }
 
-    private static AspNetBraceMatchingResult? CreateResult(RoutePatternToken open, RoutePatternToken close)
+    private static AspNetCoreBraceMatchingResult? CreateResult(RoutePatternToken open, RoutePatternToken close)
         => open.IsMissing || close.IsMissing
             ? null
-            : new AspNetBraceMatchingResult(open.VirtualChars[0].Span, close.VirtualChars[0].Span);
+            : new AspNetCoreBraceMatchingResult(open.VirtualChars[0].Span, close.VirtualChars[0].Span);
 
     // IAspNetCoreEmbeddedLanguageBraceMatcher is internal and tests don't have access to it. Provide a way to get its assembly.
     // Just for unit tests. Don't use in production code.
