@@ -63,6 +63,21 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
         {
         }
     }
+
+    public class TestController
+    {
+        [HttpGet("foo/{path:int}/{id}")]
+        public object GetProduct(int id)
+        {
+            return "";
+        }
+    }
+
+    public class HttpGetAttribute : Attribute
+    {
+        public HttpGetAttribute([StringSyntax("Route")] string pattern)
+        { }
+    }
 }
 
 //namespace Microsoft.AspNetCore.Builder

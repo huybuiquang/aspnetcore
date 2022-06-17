@@ -201,6 +201,45 @@ namespace Microsoft.AspNetCore.Builder
         Assert.Empty(result.Completions.Items);
     }
 
+    [Fact]
+    public async Task Insertion_ParameterOpenBrace_ControllerAction_HasParameter_ReturnActionParameterItem()
+    {
+        // Arrange & Act
+        var result = await GetCompletionsAndServiceAsync(@"
+using System;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Builder;
+
+class Program
+{
+    static void Main()
+    {
+    }
+}
+
+public class TestController
+{
+    [HttpGet(@""{$$"")]
+    public object TestAction(int id)
+    {
+        return null;
+    }
+}
+
+class HttpGet : Attribute
+{
+    public HttpGet([StringSyntax(""Route"")] string pattern)
+    {
+    }
+}
+");
+
+        // Assert
+        Assert.Collection(
+            result.Completions.Items,
+            i => Assert.Equal("id", i.DisplayText));
+    }
+
     private async Task<CompletionResult> GetCompletionsAndServiceAsync(string source)
     {
         MarkupTestFile.GetPosition(source, out var output, out int cursorPosition);

@@ -483,62 +483,114 @@ internal static class RouteStringSyntaxDetector
 
         if (container.Parent.IsKind(SyntaxKind.Argument))
         {
-            var argument = container.Parent;
-            if (argument.Parent is not BaseArgumentListSyntax argumentList ||
-                argumentList.Parent is null)
-            {
-                return null;
-            }
-
-            // Get the symbol as long if it's not null or if there is only one candidate symbol
-            var method = GetMethodInfo(semanticModel, argumentList.Parent, cancellationToken);
-
-            if (!method.Name.StartsWith("Map", StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            if (method.ContainingType is not
-                {
-                    Name: "EndpointRouteBuilderExtensions",
-                    ContainingNamespace:
-                    {
-                        Name: "Builder",
-                        ContainingNamespace:
-                        {
-                            Name: "AspNetCore",
-                            ContainingNamespace:
-                            {
-                                Name: "Microsoft",
-                                ContainingNamespace.IsGlobalNamespace: true,
-                            }
-                        }
-                    }
-                })
-            {
-                return null;
-            }
-
-            var delegateArgument = method.Parameters.FirstOrDefault(a => a.Type.Name == "Delegate"
-                && a.Type.ContainingNamespace.Name == "System"
-                && (a.Type.ContainingNamespace.ContainingNamespace?.IsGlobalNamespace ?? true));
-            if (delegateArgument == null)
-            {
-                return null;
-            }
-
-            var delegateIndex = method.Parameters.IndexOf(delegateArgument);
-            if (delegateIndex >= argumentList.Arguments.Count)
-            {
-                return null;
-            }
-
-            var item = argumentList.Arguments[delegateIndex];
-
-            return GetMethodInfo(semanticModel, item.Expression, cancellationToken);
+            return FindMapMethod(semanticModel, container, cancellationToken);
+        }
+        else if (container.Parent.IsKind(SyntaxKind.AttributeArgument))
+        {
+            return FindMvcMethod(semanticModel, container, cancellationToken);
         }
 
         return null;
+    }
+
+    private static IMethodSymbol? FindMvcMethod(SemanticModel semanticModel, SyntaxNode container, CancellationToken cancellationToken)
+    {
+        var argument = container.Parent;
+        if (argument.Parent is not AttributeArgumentListSyntax argumentList)
+        {
+            return null;
+        }
+
+        if (argumentList.Parent is not AttributeSyntax attribute)
+        {
+            return null;
+        }
+
+        if (attribute.Parent is not AttributeListSyntax attributeList)
+        {
+            return null;
+        }
+
+        if (attributeList.Parent is not MethodDeclarationSyntax methodDeclaration)
+        {
+            return null;
+        }
+
+        var methodSymbol = semanticModel.GetDeclaredSymbol(methodDeclaration, cancellationToken);
+
+        if (methodSymbol.ContainingType is not ITypeSymbol typeSymbol)
+        {
+            return null;
+        }
+
+        if (!MvcHelpers.IsController(typeSymbol))
+        {
+            return null;
+        }
+
+        if (!MvcHelpers.IsAction(methodSymbol))
+        {
+            return null;
+        }
+
+        return methodSymbol;
+    }
+
+    private static IMethodSymbol? FindMapMethod(SemanticModel semanticModel, SyntaxNode container, CancellationToken cancellationToken)
+    {
+        var argument = container.Parent;
+        if (argument.Parent is not BaseArgumentListSyntax argumentList ||
+            argumentList.Parent is null)
+        {
+            return null;
+        }
+
+        // Get the symbol as long if it's not null or if there is only one candidate symbol
+        var method = GetMethodInfo(semanticModel, argumentList.Parent, cancellationToken);
+
+        if (!method.Name.StartsWith("Map", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (method.ContainingType is not
+            {
+                Name: "EndpointRouteBuilderExtensions",
+                ContainingNamespace:
+                {
+                    Name: "Builder",
+                    ContainingNamespace:
+                    {
+                        Name: "AspNetCore",
+                        ContainingNamespace:
+                        {
+                            Name: "Microsoft",
+                            ContainingNamespace.IsGlobalNamespace: true,
+                        }
+                    }
+                }
+            })
+        {
+            return null;
+        }
+
+        var delegateArgument = method.Parameters.FirstOrDefault(a => a.Type.Name == "Delegate"
+            && a.Type.ContainingNamespace.Name == "System"
+            && (a.Type.ContainingNamespace.ContainingNamespace?.IsGlobalNamespace ?? true));
+        if (delegateArgument == null)
+        {
+            return null;
+        }
+
+        var delegateIndex = method.Parameters.IndexOf(delegateArgument);
+        if (delegateIndex >= argumentList.Arguments.Count)
+        {
+            return null;
+        }
+
+        var item = argumentList.Arguments[delegateIndex];
+
+        return GetMethodInfo(semanticModel, item.Expression, cancellationToken);
     }
 
     private static IMethodSymbol? GetMethodInfo(SemanticModel semanticModel, SyntaxNode syntaxNode, CancellationToken cancellationToken)

@@ -40,6 +40,8 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override bool ShouldTriggerCompletion(SourceText text, int caretPosition, CompletionTrigger trigger, OptionSet options)
     {
+        Debugger.Launch();
+
         if (trigger.Kind is CompletionTriggerKind.Invoke or
             CompletionTriggerKind.InvokeAndCommitIfUnique)
         {
@@ -86,6 +88,8 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override async Task ProvideCompletionsAsync(CompletionContext context)
     {
+        Debugger.Launch();
+
         if (context.Trigger.Kind is not CompletionTriggerKind.Invoke and
             not CompletionTriggerKind.InvokeAndCommitIfUnique and
             not CompletionTriggerKind.Insertion)
