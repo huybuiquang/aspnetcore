@@ -25,6 +25,7 @@ public class WebApplicationBuilderAnalyzer : DiagnosticAnalyzer
 
     public override void Initialize(AnalysisContext context)
     {
+        new System.Text.RegularExpressions.Regex("$");
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
 

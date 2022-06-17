@@ -67,6 +67,34 @@ class Program
     }
 
     [Fact]
+    public async Task Insertion_PolicyColon_MultipleOverloads_ReturnPolicies()
+    {
+        // Arrange & Act
+        var result = await GetCompletionsAndServiceAsync(@"
+using System.Diagnostics.CodeAnalysis;
+
+class Program
+{
+    static void Main()
+    {
+        M(@""{hi:$$"");
+    }
+
+    static void M([StringSyntax(""Route"")] string p)
+    {
+    }
+    static void M([StringSyntax(""Route"")] string p, int i)
+    {
+    }
+}
+");
+
+        // Assert
+        Assert.NotEmpty(result.Completions.Items);
+        Assert.Equal("alpha", result.Completions.Items[0].DisplayText);
+    }
+
+    [Fact]
     public async Task Insertion_ParameterOpenBrace_UnsupportedMethod_NoItems()
     {
         // Arrange & Act
@@ -109,17 +137,6 @@ class Program
         EndpointRouteBuilderExtensions.MapGet(null, @""{$$"", (string id) => "");
     }
 }
-
-namespace Microsoft.AspNetCore.Builder
-{
-    public static class EndpointRouteBuilderExtensions
-    {
-        public static RouteHandlerBuilder MapGet(this IEndpointRouteBuilder endpoints, [StringSyntax(""Route"")] string pattern, Delegate handler)
-        {
-            return null;
-        }
-    }
-}
 ");
 
         // Assert
@@ -149,15 +166,40 @@ class Program
         return """";
     }
 }
+");
 
-namespace Microsoft.AspNetCore.Builder
-{
-    public static class EndpointRouteBuilderExtensions
+        // Assert
+        Assert.Collection(
+            result.Completions.Items,
+            i => Assert.Equal("id", i.DisplayText));
+    }
+
+    [Fact]
+    public async Task Insertion_ParameterOpenBrace_EndpointMapGet_HasSpecialTypes_ExcludeSpecialTypes()
     {
-        public static RouteHandlerBuilder MapGet(this IEndpointRouteBuilder endpoints, [StringSyntax(""Route"")] string pattern, Delegate handler)
-        {
-            return null;
-        }
+        // Arrange & Act
+        var result = await GetCompletionsAndServiceAsync(@"
+using System;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.IO.Pipelines;
+using System.Security.Claims;
+using System.Threading;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+
+class Program
+{
+    static void Main()
+    {
+        EndpointRouteBuilderExtensions.MapGet(null, @""{$$"", ExecuteGet);
+    }
+
+    static string ExecuteGet(string id, CancellationToken cancellationToken, HttpContext context,
+        HttpRequest request, HttpResponse response, ClaimsPrincipal claimsPrincipal,
+        IFormFileCollection formFiles, IFormFile formFile, Stream stream, PipeReader pipeReader)
+    {
+        return """";
     }
 }
 ");
@@ -169,7 +211,48 @@ namespace Microsoft.AspNetCore.Builder
     }
 
     [Fact]
-    public async Task Insertion_ParameterOpenBrace_EndpointMapGet_NullDelegate_ReturnDelegateParameterItem()
+    public async Task Insertion_ParameterOpenBrace_EndpointMapGet_AsParameters_ReturnObjectParameterItem()
+    {
+        // Arrange & Act
+        var result = await GetCompletionsAndServiceAsync(@"
+using System;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+class Program
+{
+    static void Main()
+    {
+        EndpointRouteBuilderExtensions.MapGet(null, @""{$$"", ExecuteGet);
+    }
+
+    static string ExecuteGet([AsParameters] PageData id)
+    {
+        return """";
+    }
+
+    class PageData
+    {
+        public int PageNumber { get; set; }
+        [FromRoute]
+        public int PageIndex { get; set; }
+        [FromServices]
+        public object Service { get; set; }
+    }
+}
+");
+
+        // Assert
+        Assert.Collection(
+            result.Completions.Items,
+            i => Assert.Equal("PageIndex", i.DisplayText),
+            i => Assert.Equal("PageNumber", i.DisplayText));
+    }
+
+    [Fact]
+    public async Task Insertion_ParameterOpenBrace_EndpointMapGet_NullDelegate_NoResults()
     {
         // Arrange & Act
         var result = await GetCompletionsAndServiceAsync(@"
@@ -182,17 +265,6 @@ class Program
     static void Main()
     {
         EndpointRouteBuilderExtensions.MapGet(null, @""{$$"", null);
-    }
-}
-
-namespace Microsoft.AspNetCore.Builder
-{
-    public static class EndpointRouteBuilderExtensions
-    {
-        public static RouteHandlerBuilder MapGet(this IEndpointRouteBuilder endpoints, [StringSyntax(""Route"")] string pattern, Delegate handler)
-        {
-            return null;
-        }
     }
 }
 ");
@@ -209,6 +281,7 @@ namespace Microsoft.AspNetCore.Builder
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 
 class Program
 {
@@ -223,13 +296,6 @@ public class TestController
     public object TestAction(int id)
     {
         return null;
-    }
-}
-
-class HttpGet : Attribute
-{
-    public HttpGet([StringSyntax(""Route"")] string pattern)
-    {
     }
 }
 ");

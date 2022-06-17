@@ -174,7 +174,7 @@ internal static class RouteStringSyntaxDetector
         CancellationToken cancellationToken,
         [NotNullWhen(true)] out string? identifier)
     {
-        var parameter = FindParameterForArgument(semanticModel, argument, cancellationToken);
+        var parameter = FindParameterForArgument(semanticModel, argument, allowUncertainCandidates: true, cancellationToken);
         return HasMatchingStringSyntaxAttribute(parameter, out identifier);
     }
 
@@ -192,7 +192,7 @@ internal static class RouteStringSyntaxDetector
         }
 
         // Otherwise, see if it's a normal named/position argument to the attribute.
-        var parameter = FindParameterForAttributeArgument(semanticModel, argument, cancellationToken);
+        var parameter = FindParameterForAttributeArgument(semanticModel, argument, allowUncertainCandidates: true, cancellationToken);
         return HasMatchingStringSyntaxAttribute(parameter, out identifier);
     }
 
@@ -261,11 +261,11 @@ internal static class RouteStringSyntaxDetector
             ? GetAnySymbol(semanticModel.GetSymbolInfo(name, cancellationToken))
             : null;
 
-    private static IParameterSymbol FindParameterForArgument(SemanticModel semanticModel, SyntaxNode argument, CancellationToken cancellationToken)
-        => DetermineParameter((ArgumentSyntax)argument, semanticModel, allowParams: false, cancellationToken);
+    private static IParameterSymbol FindParameterForArgument(SemanticModel semanticModel, SyntaxNode argument, bool allowUncertainCandidates, CancellationToken cancellationToken)
+        => DetermineParameter((ArgumentSyntax)argument, semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
 
-    private static IParameterSymbol FindParameterForAttributeArgument(SemanticModel semanticModel, SyntaxNode argument, CancellationToken cancellationToken)
-        => DetermineParameter((AttributeArgumentSyntax)argument, semanticModel, allowParams: false, cancellationToken);
+    private static IParameterSymbol FindParameterForAttributeArgument(SemanticModel semanticModel, SyntaxNode argument, bool allowUncertainCandidates, CancellationToken cancellationToken)
+        => DetermineParameter((AttributeArgumentSyntax)argument, semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
 
     public static ISymbol? GetAnySymbol(SymbolInfo info)
         => info.Symbol ?? info.CandidateSymbols.FirstOrDefault();
@@ -275,9 +275,10 @@ internal static class RouteStringSyntaxDetector
     /// is true, the last parameter will be returned if it is params parameter and the index of
     /// the specified argument is greater than the number of parameters.
     /// </summary>
-    private static IParameterSymbol? DetermineParameter(
-        ArgumentSyntax argument,
+    public static IParameterSymbol? DetermineParameter(
+        this ArgumentSyntax argument,
         SemanticModel semanticModel,
+        bool allowUncertainCandidates = false,
         bool allowParams = false,
         CancellationToken cancellationToken = default)
     {
@@ -289,49 +290,54 @@ internal static class RouteStringSyntaxDetector
 
         // Get the symbol as long if it's not null or if there is only one candidate symbol
         var symbolInfo = semanticModel.GetSymbolInfo(argumentList.Parent, cancellationToken);
-        var symbol = symbolInfo.Symbol;
-        if (symbol == null && symbolInfo.CandidateSymbols.Length == 1)
-        {
-            symbol = symbolInfo.CandidateSymbols[0];
-        }
+        var symbols = GetBestOrAllSymbols(symbolInfo);
 
-        if (symbol == null)
+        if (symbols.Length >= 2 && !allowUncertainCandidates)
         {
             return null;
         }
 
-        var parameters = GetParameters(symbol);
-
-        // Handle named argument
-        if (argument.NameColon != null && !argument.NameColon.IsMissing)
+        foreach (var symbol in symbols)
         {
-            var name = argument.NameColon.Name.Identifier.ValueText;
-            return parameters.FirstOrDefault(p => p.Name == name);
-        }
+            var parameters = GetParameters(symbol);
 
-        // Handle positional argument
-        var index = argumentList.Arguments.IndexOf(argument);
-        if (index < 0)
-        {
-            return null;
-        }
-
-        if (index < parameters.Length)
-        {
-            return parameters[index];
-        }
-
-        if (allowParams)
-        {
-            var lastParameter = parameters.LastOrDefault();
-            if (lastParameter == null)
+            // Handle named argument
+            if (argument.NameColon != null && !argument.NameColon.IsMissing)
             {
-                return null;
+                var name = argument.NameColon.Name.Identifier.ValueText;
+                var parameter = parameters.FirstOrDefault(p => p.Name == name);
+                if (parameter != null)
+                {
+                    return parameter;
+                }
+
+                continue;
             }
 
-            if (lastParameter.IsParams)
+            // Handle positional argument
+            var index = argumentList.Arguments.IndexOf(argument);
+            if (index < 0)
             {
-                return lastParameter;
+                continue;
+            }
+
+            if (index < parameters.Length)
+            {
+                return parameters[index];
+            }
+
+            if (allowParams)
+            {
+                var lastParameter = parameters.LastOrDefault();
+                if (lastParameter == null)
+                {
+                    continue;
+                }
+
+                if (lastParameter.IsParams)
+                {
+                    return lastParameter;
+                }
             }
         }
 
@@ -346,9 +352,10 @@ internal static class RouteStringSyntaxDetector
     /// <remarks>
     /// Returns null if the <paramref name="argument"/> is a named argument.
     /// </remarks>
-    public static IParameterSymbol DetermineParameter(
+    public static IParameterSymbol? DetermineParameter(
         this AttributeArgumentSyntax argument,
         SemanticModel semanticModel,
+        bool allowUncertainCandidates = false,
         bool allowParams = false,
         CancellationToken cancellationToken = default)
     {
@@ -357,59 +364,74 @@ internal static class RouteStringSyntaxDetector
         {
             return null;
         }
-
         if (argument.Parent is not AttributeArgumentListSyntax argumentList)
         {
             return null;
         }
-
         if (argumentList.Parent is not AttributeSyntax invocableExpression)
         {
             return null;
         }
-
-        var symbol = semanticModel.GetSymbolInfo(invocableExpression, cancellationToken).Symbol;
-        if (symbol == null)
+        var symbols = GetBestOrAllSymbols(semanticModel.GetSymbolInfo(invocableExpression, cancellationToken));
+        if (symbols.Length >= 2 && !allowUncertainCandidates)
         {
             return null;
         }
-
-        var parameters = GetParameters(symbol);
-
-        // Handle named argument
-        if (argument.NameColon != null && !argument.NameColon.IsMissing)
+        foreach (var symbol in symbols)
         {
-            var name = argument.NameColon.Name.Identifier.ValueText;
-            return parameters.FirstOrDefault(p => p.Name == name);
-        }
+            var parameters = GetParameters(symbol);
 
-        // Handle positional argument
-        var index = argumentList.Arguments.IndexOf(argument);
-        if (index < 0)
-        {
-            return null;
-        }
-
-        if (index < parameters.Length)
-        {
-            return parameters[index];
-        }
-
-        if (allowParams)
-        {
-            var lastParameter = parameters.LastOrDefault();
-            if (lastParameter == null)
+            // Handle named argument
+            if (argument.NameColon != null && !argument.NameColon.IsMissing)
             {
-                return null;
+                var name = argument.NameColon.Name.Identifier.ValueText;
+                var parameter = parameters.FirstOrDefault(p => p.Name == name);
+                if (parameter != null)
+                {
+                    return parameter;
+                }
+                continue;
             }
 
-            if (lastParameter.IsParams)
+            // Handle positional argument
+            var index = argumentList.Arguments.IndexOf(argument);
+            if (index < 0)
             {
-                return lastParameter;
+                continue;
+            }
+            if (index < parameters.Length)
+            {
+                return parameters[index];
+            }
+            if (allowParams)
+            {
+                var lastParameter = parameters.LastOrDefault();
+                if (lastParameter == null)
+                {
+                    continue;
+                }
+                if (lastParameter.IsParams)
+                {
+                    return lastParameter;
+                }
             }
         }
 
         return null;
+    }
+
+    public static ImmutableArray<ISymbol> GetBestOrAllSymbols(SymbolInfo info)
+    {
+        if (info.Symbol != null)
+        {
+            return ImmutableArray.Create(info.Symbol);
+        }
+        else if (info.CandidateSymbols.Length > 0)
+        {
+            return info.CandidateSymbols;
+        }
+
+        return ImmutableArray<ISymbol>.Empty;
     }
 
     private static ImmutableArray<IParameterSymbol> GetParameters(ISymbol? symbol)
@@ -468,29 +490,29 @@ internal static class RouteStringSyntaxDetector
         return false;
     }
 
-    public static IMethodSymbol? GetTargetMethod(SyntaxToken token, SemanticModel semanticModel, CancellationToken cancellationToken)
+    public static (IMethodSymbol? Symbol, bool IsMinimal) GetTargetMethod(SyntaxToken token, SemanticModel semanticModel, CancellationToken cancellationToken)
     {
         if (token.Parent is not LiteralExpressionSyntax)
         {
-            return null;
+            return default;
         }
 
         var container = TryFindContainer(token);
         if (container is null)
         {
-            return null;
+            return default;
         }
 
         if (container.Parent.IsKind(SyntaxKind.Argument))
         {
-            return FindMapMethod(semanticModel, container, cancellationToken);
+            return (FindMapMethod(semanticModel, container, cancellationToken), true);
         }
         else if (container.Parent.IsKind(SyntaxKind.AttributeArgument))
         {
-            return FindMvcMethod(semanticModel, container, cancellationToken);
+            return (FindMvcMethod(semanticModel, container, cancellationToken), false);
         }
 
-        return null;
+        return default;
     }
 
     private static IMethodSymbol? FindMvcMethod(SemanticModel semanticModel, SyntaxNode container, CancellationToken cancellationToken)

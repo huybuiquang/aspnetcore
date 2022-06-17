@@ -4,11 +4,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
@@ -34,8 +37,7 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
             // constraint = green
             // default value = default
             // constraint argument = default
-
-            Helper.MapRoute("foo/{*path:int}"); // catch all
+            Helper.MapRoute("foo/{*path:regex:alpha:int}"); // catch all
             Helper.MapRoute("foo/{**path}"); // catch all without escape
             Helper.MapRoute("{controller}/{action}/{id?}"); // optional segment
             Helper.MapRoute("files/{filename}.{ext?}"); // optional segment after .
@@ -47,11 +49,29 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
             Helper.MapRoute("{filename:length(8,16)}"); // route constraint with multiple arguments
             Helper.MapRoute("{ssn:regex(^\\d{{3}}-\\d{{2}}-\\d{{4}}$)}"); // route constraint with string argument
             Helper.MapRoute("{id:int:min(1)}"); // multiple route constraints
-            EndpointRouteBuilderExtensions.MapGet(endpoints: null, "{id}/{cancellationToken}", handler: (string id, CancellationToken cancellationToken) => ""); // multiple route constraints
+            EndpointRouteBuilderExtensions.MapGet(endpoints: null,
+                "{id}/{cancellationToken:min(5):int:}",
+                handler: (string id, CancellationToken cancellationToken) => ""); // multiple route constraints
+            EndpointRouteBuilderExtensions.MapGet(endpoints: null,
+                "{id}/{cancellationToken:min(5):int:}",
+                handler: ([AsParameters] PageData page) => "");
+            EndpointRouteBuilderExtensions.MapGet(endpoints: null, "{id}", requestDelegate: context => Task.CompletedTask);
+
+            IEndpointRouteBuilder b = null!;
+            var g = b.MapGroup("{sdf}");
+            g.MapGet("{p}", (int p) => "");
+            g.MapControllerRoute("Default", "{pie}");
+            g.MapMethods("{pie}", new string[] { "" }, () => string.Empty);
 
             Helper.MapRoute("/users/{userId}/books/{bookId?}",
                 (int userId, int bookId) => $"The user id is {userId} and book id is {bookId}");
         }
+    }
+
+    public class PageData
+    {
+        public int PageNumber { get; set; }
+        public int PageIndex { get; set; }
     }
 
     public static class Helper
@@ -72,21 +92,4 @@ namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage
             return "";
         }
     }
-
-    public class HttpGetAttribute : Attribute
-    {
-        public HttpGetAttribute([StringSyntax("Route")] string pattern)
-        { }
-    }
 }
-
-//namespace Microsoft.AspNetCore.Builder
-//{
-//    public static class EndpointRouteBuilderExtensions
-//    {
-//        public static RouteHandlerBuilder MapGet(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")] string pattern, Delegate handler)
-//        {
-//            return null;
-//        }
-//    }
-//}

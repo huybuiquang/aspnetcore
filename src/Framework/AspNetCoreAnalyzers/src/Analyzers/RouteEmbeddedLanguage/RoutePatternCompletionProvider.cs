@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Options;
+using Microsoft.CodeAnalysis.Tags;
 using Microsoft.CodeAnalysis.Text;
 using RoutePatternToken = Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common.EmbeddedSyntaxToken<Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePatternKind>;
 
@@ -40,8 +41,6 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override bool ShouldTriggerCompletion(SourceText text, int caretPosition, CompletionTrigger trigger, OptionSet options)
     {
-        Debugger.Launch();
-
         if (trigger.Kind is CompletionTriggerKind.Invoke or
             CompletionTriggerKind.InvokeAndCommitIfUnique)
         {
@@ -58,8 +57,6 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override Task<CompletionDescription> GetDescriptionAsync(Document document, CompletionItem item, CancellationToken cancellationToken)
     {
-        Debugger.Launch();
-
         if (!item.Properties.TryGetValue(DescriptionKey, out var description))
         {
             return Task.FromResult<CompletionDescription>(null);
@@ -71,8 +68,6 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override Task<CompletionChange> GetChangeAsync(Document document, CompletionItem item, char? commitKey, CancellationToken cancellationToken)
     {
-        Debugger.Launch();
-
         // These values have always been added by us.
         var startString = item.Properties[StartKey];
         var lengthString = item.Properties[LengthKey];
@@ -88,8 +83,6 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     public override async Task ProvideCompletionsAsync(CompletionContext context)
     {
-        Debugger.Launch();
-
         if (context.Trigger.Kind is not CompletionTriggerKind.Invoke and
             not CompletionTriggerKind.InvokeAndCommitIfUnique and
             not CompletionTriggerKind.Insertion)
@@ -126,7 +119,6 @@ public class RoutePatternCompletionProvider : CompletionProvider
             properties.Add(LengthKey, textChange.Span.Length.ToString(CultureInfo.InvariantCulture));
             properties.Add(NewTextKey, textChange.NewText);
             properties.Add(DescriptionKey, embeddedItem.FullDescription);
-            //properties.Add(AbstractAggregateEmbeddedLanguageCompletionProvider.EmbeddedProviderName, Name);
 
             if (change.NewPosition != null)
             {
@@ -137,10 +129,11 @@ public class RoutePatternCompletionProvider : CompletionProvider
             var sortText = routePatternCompletionContext.Items.Count.ToString("0000", CultureInfo.InvariantCulture);
             context.AddItem(CompletionItem.Create(
                 displayText: embeddedItem.DisplayText,
-                inlineDescription: embeddedItem.InlineDescription,
+                inlineDescription: "",
                 sortText: sortText,
                 properties: properties.ToImmutable(),
-                rules: s_rules));
+                rules: s_rules,
+                tags: ImmutableArray.Create(embeddedItem.Glyph)));
         }
 
         context.IsExclusive = true;
@@ -234,39 +227,186 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     private void ProvideParameterCompletions(EmbeddedCompletionContext context)
     {
-        var method = RouteStringSyntaxDetector.GetTargetMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
+        var (method, isMinimal) = RouteStringSyntaxDetector.GetTargetMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
         if (method != null)
         {
-            foreach (var parameter in method.Parameters)
+            var resolvedParameterSymbols = isMinimal ? ResolvedMinimalParameters(method, context.SemanticModel) : method.Parameters.As<ISymbol>();
+            foreach (var parameterSymbol in resolvedParameterSymbols)
             {
-                context.AddIfMissing(parameter.Name, suffix: null, description: null, parentOpt: null);
+                context.AddIfMissing(parameterSymbol.Name, suffix: null, description: null, WellKnownTags.Parameter, parentOpt: null);
             }
         }
     }
 
+    private ImmutableArray<ISymbol> ResolvedMinimalParameters(ISymbol symbol, SemanticModel semanticModel)
+    {
+        var resolvedParameterSymbols = new List<ISymbol>();
+        var childSymbols = symbol switch
+        {
+            ITypeSymbol typeSymbol => typeSymbol.GetMembers().OfType<IPropertySymbol>().ToImmutableArray().As<ISymbol>(),
+            IMethodSymbol methodSymbol => methodSymbol.Parameters.As<ISymbol>(),
+            _ => throw new InvalidOperationException("Unexpected symbol type: " + symbol)
+        };
+
+        foreach (var child in childSymbols)
+        {
+            if (HasAttribute(child, "Microsoft.AspNetCore.Http.AsParametersAttribute", semanticModel))
+            {
+                resolvedParameterSymbols.AddRange(ResolvedMinimalParameters(GetParameterType(child), semanticModel));
+            }
+            else if (HasExplicitNonRouteAttribute(child, semanticModel) || HasSpecialType(child, semanticModel))
+            {
+                continue;
+            }
+            else
+            {
+                resolvedParameterSymbols.Add(child);
+            }
+        }
+        return resolvedParameterSymbols.ToImmutableArray();
+    }
+
+    private static bool IsType(INamedTypeSymbol type, string typeName, SemanticModel semanticModel)
+        => SymbolEqualityComparer.Default.Equals(type, semanticModel.Compilation.GetTypeByMetadataName(typeName));
+
+    private static bool HasSpecialType(ISymbol child, SemanticModel semanticModel)
+    {
+        var type = GetParameterType(child) as INamedTypeSymbol;
+        if (type == null)
+        {
+            return false;
+        }
+
+        if (IsType(type, typeof(CancellationToken).FullName!, semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "Microsoft.AspNetCore.Http.HttpContext", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "Microsoft.AspNetCore.Http.HttpRequest", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "Microsoft.AspNetCore.Http.HttpResponse", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "System.Security.Claims.ClaimsPrincipal", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "Microsoft.AspNetCore.Http.IFormFileCollection", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "Microsoft.AspNetCore.Http.IFormFile", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "System.IO.Stream", semanticModel))
+        {
+            return true;
+        }
+
+        if (IsType(type, "System.IO.Pipelines.PipeReader", semanticModel))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasExplicitNonRouteAttribute(ISymbol child, SemanticModel semanticModel)
+    {
+        var fromBodyMetadataType = semanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.Metadata.IFromBodyMetadata");
+        var fromFormMetadataType = semanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.Metadata.IFromFormMetadata");
+        var fromHeaderMetadataType = semanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.Metadata.IFromHeaderMetadata");
+        var fromQueryMetadataType = semanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.Metadata.IFromQueryMetadata");
+        var fromServicesMetadataType = semanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.Metadata.IFromServiceMetadata");
+
+        var allNoneRouteMetadataTypes = new[]
+        {
+            fromBodyMetadataType,
+            fromFormMetadataType,
+            fromHeaderMetadataType,
+            fromQueryMetadataType,
+            fromServicesMetadataType
+        };
+
+        foreach (var attributeData in child.GetAttributes())
+        {
+            foreach (var interfaceType in attributeData.AttributeClass.AllInterfaces)
+            {
+                foreach (var nonRouteMetadata in allNoneRouteMetadataTypes)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(interfaceType, nonRouteMetadata))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasAttribute(ISymbol child, string typeName, SemanticModel semanticModel)
+    {
+        var attributeType = semanticModel.Compilation.GetTypeByMetadataName(typeName);
+
+        foreach (var attributeData in child.GetAttributes())
+        {
+            if (SymbolEqualityComparer.Default.Equals(attributeData.AttributeClass, attributeType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static ITypeSymbol GetParameterType(ISymbol symbol)
+    {
+        return symbol switch
+        {
+            IParameterSymbol parameterSymbol => parameterSymbol.Type,
+            IPropertySymbol propertySymbol => propertySymbol.Type,
+            _ => throw new InvalidOperationException("Unexpected symbol type: " + symbol)
+        };
+    }
+
     private void ProvidePolicyNameCompletions(EmbeddedCompletionContext context)
     {
-        context.AddIfMissing("int", "Integer constraint", "Matches any 32-bit integer.", parentOpt: null);
-        context.AddIfMissing("bool", "Boolean constraint", "Matches true or false. Case-insensitive.", parentOpt: null);
-        context.AddIfMissing("datetime", "DateTime constraint", "Matches a valid DateTime value in the invariant culture.", parentOpt: null);
-        context.AddIfMissing("decimal", "Decimal constraint", "Matches a valid decimal value in the invariant culture.", parentOpt: null);
-        context.AddIfMissing("double", "Double constraint", "Matches a valid double value in the invariant culture.", parentOpt: null);
-        context.AddIfMissing("float", "Float constraint", "Matches a valid float value in the invariant culture.", parentOpt: null);
-        context.AddIfMissing("guid", "Guid constraint", "Matches a valid Guid value.", parentOpt: null);
-        context.AddIfMissing("long", "Long constraint", "Matches any 64-bit integer.", parentOpt: null);
-        context.AddIfMissing("minlength", "Minimum length constraint", "Matches a string with a length greater than, or equal to, the constraint argument.", parentOpt: null);
-        context.AddIfMissing("maxlength", "Maximum length constraint", "Matches a string with a length less than, or equal to, the constraint argument.", parentOpt: null);
-        context.AddIfMissing("length", "Length constraint", @"The string length constraint supports one or two constraint arguments.
+        context.AddIfMissing("int", suffix: null, "Matches any 32-bit integer.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("bool", suffix: null, "Matches true or false. Case-insensitive.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("datetime", suffix: null, "Matches a valid DateTime value in the invariant culture.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("decimal", suffix: null, "Matches a valid decimal value in the invariant culture.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("double", suffix: null, "Matches a valid double value in the invariant culture.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("float", suffix: null, "Matches a valid float value in the invariant culture.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("guid", suffix: null, "Matches a valid Guid value.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("long", suffix: null, "Matches any 64-bit integer.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("minlength", suffix: null, "Matches a string with a length greater than, or equal to, the constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("maxlength", suffix: null, "Matches a string with a length less than, or equal to, the constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("length", suffix: null, @"The string length constraint supports one or two constraint arguments.
 
 If there is one argument the string length must equal the argument. For example, length(10) matches a string with exactly 10 characters.
 
-If there are two arguments then the string length must be greater than, or equal to, the first argument and less than, or equal to, the second argument. For example, length(8,16) matches a string at least 8 and no more than 16 characters long.", parentOpt: null);
-        context.AddIfMissing("min", "Minimum constraint", "Matches an integer with a value greater than, or equal to, the constraint argument.", parentOpt: null);
-        context.AddIfMissing("max", "Maximum constraint", "Matches an integer with a value less than, or equal to, the constraint argument.", parentOpt: null);
-        context.AddIfMissing("range", "Range constraint", "Matches an integer with a value greater than, or equal to, the first constraint argument and less than, or equal to, the second constraint argument.", parentOpt: null);
-        context.AddIfMissing("alpha", "Alphabet constraint", "Matches a string that contains only lowercase or uppercase letters A through Z in the English alphabet.", parentOpt: null);
-        context.AddIfMissing("regex", "Regular expression constraint", "Matches a string to the regular expression constraint argument.", parentOpt: null);
-        context.AddIfMissing("required", "Required constraint", "	Used to enforce that a non-parameter value is present during URL generation.", parentOpt: null);
+If there are two arguments then the string length must be greater than, or equal to, the first argument and less than, or equal to, the second argument. For example, length(8,16) matches a string at least 8 and no more than 16 characters long.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("min", suffix: null, "Matches an integer with a value greater than, or equal to, the constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("max", suffix: null, "Matches an integer with a value less than, or equal to, the constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("range", suffix: null, "Matches an integer with a value greater than, or equal to, the first constraint argument and less than, or equal to, the second constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("alpha", suffix: null, "Matches a string that contains only lowercase or uppercase letters A through Z in the English alphabet.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("regex", suffix: null, "Matches a string to the regular expression constraint argument.", WellKnownTags.Keyword, parentOpt: null);
+        context.AddIfMissing("required", suffix: null, "Used to enforce that a non-parameter value is present during URL generation.", WellKnownTags.Keyword, parentOpt: null);
     }
 
     internal static async ValueTask<(RoutePatternTree tree, SyntaxToken token, SemanticModel model)> TryGetTreeAndTokenAtPositionAsync(
@@ -354,14 +494,16 @@ If there are two arguments then the string length must be greater than, or equal
         public readonly string DisplayText;
         public readonly string InlineDescription;
         public readonly string FullDescription;
+        public readonly string Glyph;
         public readonly CompletionChange Change;
 
         public RoutePatternItem(
-            string displayText, string inlineDescription, string fullDescription, CompletionChange change)
+            string displayText, string inlineDescription, string fullDescription, string glyph, CompletionChange change)
         {
             DisplayText = displayText;
             InlineDescription = inlineDescription;
             FullDescription = fullDescription;
+            Glyph = glyph;
             Change = change;
         }
     }
@@ -395,7 +537,7 @@ If there are two arguments then the string length must be greater than, or equal
         }
 
         public void AddIfMissing(
-            string displayText, string suffix, string description,
+            string displayText, string suffix, string description, string glyph,
             RoutePatternNode parentOpt, int? positionOffset = null, string insertionText = null)
         {
             var replacementStart = parentOpt != null
@@ -414,7 +556,7 @@ If there are two arguments then the string length must be greater than, or equal
             }
 
             AddIfMissing(new RoutePatternItem(
-                displayText, suffix, description,
+                displayText, suffix, description, glyph,
                 CompletionChange.Create(
                     new TextChange(replacementSpan, escapedInsertionText),
                     newPosition)));
