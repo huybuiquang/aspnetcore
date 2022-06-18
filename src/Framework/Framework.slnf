@@ -24,7 +24,6 @@
       "src\\Framework\\AspNetCoreAnalyzers\\src\\Analyzers\\Microsoft.AspNetCore.App.Analyzers.csproj",
       "src\\Framework\\AspNetCoreAnalyzers\\src\\CodeFixes\\Microsoft.AspNetCore.App.CodeFixes.csproj",
       "src\\Framework\\AspNetCoreAnalyzers\\test\\Microsoft.AspNetCore.App.Analyzers.Test.csproj",
-      "src\\Framework\\AspNetCoreAnalyzers\\testassets\\Analyzer1.Vsix\\Analyzer1.Vsix.csproj",
       "src\\Framework\\test\\Microsoft.AspNetCore.App.UnitTests.csproj",
       "src\\HealthChecks\\Abstractions\\src\\Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.csproj",
       "src\\HealthChecks\\HealthChecks\\src\\Microsoft.Extensions.Diagnostics.HealthChecks.csproj",
