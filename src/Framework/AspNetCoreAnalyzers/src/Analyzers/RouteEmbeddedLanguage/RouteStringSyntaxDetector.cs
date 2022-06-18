@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -52,7 +53,7 @@ internal static class RouteStringSyntaxDetector
             return false;
         }
 
-        var container = TryFindContainer(token);
+        var container = token.TryFindContainer();
         if (container is null)
         {
             identifier = null;
@@ -76,7 +77,7 @@ internal static class RouteStringSyntaxDetector
         else
         {
             var statement = container.FirstAncestorOrSelf<SyntaxNode>(n => n is StatementSyntax);
-            if (IsSimpleAssignmentStatement(statement))
+            if (statement.IsSimpleAssignmentStatement())
             {
                 GetPartsOfAssignmentStatement(statement, out var left, out var right);
                 if (container == right &&
@@ -94,7 +95,7 @@ internal static class RouteStringSyntaxDetector
                     var variableDeclarator = container.Parent.Parent;
                     var symbol =
                         semanticModel.GetDeclaredSymbol(variableDeclarator, cancellationToken) ??
-                        semanticModel.GetDeclaredSymbol(GetRequiredParent(GetIdentifierOfVariableDeclarator(variableDeclarator)), cancellationToken);
+                        semanticModel.GetDeclaredSymbol(GetIdentifierOfVariableDeclarator(variableDeclarator).GetRequiredParent(), cancellationToken);
 
                     if (IsFieldOrPropertyWithMatchingStringSyntaxAttribute(symbol, out identifier))
                     {
@@ -103,7 +104,7 @@ internal static class RouteStringSyntaxDetector
                 }
                 else if (IsEqualsValueOfPropertyDeclaration(container.Parent))
                 {
-                    var property = GetRequiredParent(container.Parent);
+                    var property = container.Parent.GetRequiredParent();
                     var symbol = semanticModel.GetDeclaredSymbol(property, cancellationToken);
 
                     if (IsFieldOrPropertyWithMatchingStringSyntaxAttribute(symbol, out identifier))
@@ -134,14 +135,6 @@ internal static class RouteStringSyntaxDetector
         return IsFieldOrPropertyWithMatchingStringSyntaxAttribute(symbol, out identifier);
     }
 
-    private static bool IsFieldOrPropertyWithMatchingStringSyntaxAttribute(
-        ISymbol? symbol, [NotNullWhen(true)] out string? identifier)
-    {
-        identifier = null;
-        return symbol is IFieldSymbol or IPropertySymbol &&
-            HasMatchingStringSyntaxAttribute(symbol, out identifier);
-    }
-
     public static void GetPartsOfAssignmentStatement(
         SyntaxNode statement, out SyntaxNode left, out SyntaxNode right)
     {
@@ -163,10 +156,6 @@ internal static class RouteStringSyntaxDetector
         operatorToken = assignment.OperatorToken;
         right = assignment.Right;
     }
-
-    public static bool IsSimpleAssignmentStatement([NotNullWhen(true)] SyntaxNode? statement)
-        => statement is ExpressionStatementSyntax exprStatement &&
-           exprStatement.Expression.IsKind(SyntaxKind.SimpleAssignmentExpression);
 
     private static bool IsArgumentWithMatchingStringSyntaxAttribute(
         SemanticModel semanticModel,
@@ -194,6 +183,14 @@ internal static class RouteStringSyntaxDetector
         // Otherwise, see if it's a normal named/position argument to the attribute.
         var parameter = FindParameterForAttributeArgument(semanticModel, argument, allowUncertainCandidates: true, cancellationToken);
         return HasMatchingStringSyntaxAttribute(parameter, out identifier);
+    }
+
+    public static bool IsFieldOrPropertyWithMatchingStringSyntaxAttribute(
+        ISymbol? symbol, [NotNullWhen(true)] out string? identifier)
+    {
+        identifier = null;
+        return symbol is IFieldSymbol or IPropertySymbol &&
+            HasMatchingStringSyntaxAttribute(symbol, out identifier);
     }
 
     private static bool HasMatchingStringSyntaxAttribute(
@@ -299,7 +296,7 @@ internal static class RouteStringSyntaxDetector
 
         foreach (var symbol in symbols)
         {
-            var parameters = GetParameters(symbol);
+            var parameters = symbol.GetParameters();
 
             // Handle named argument
             if (argument.NameColon != null && !argument.NameColon.IsMissing)
@@ -379,7 +376,7 @@ internal static class RouteStringSyntaxDetector
         }
         foreach (var symbol in symbols)
         {
-            var parameters = GetParameters(symbol);
+            var parameters = symbol.GetParameters();
 
             // Handle named argument
             if (argument.NameColon != null && !argument.NameColon.IsMissing)
@@ -432,198 +429,5 @@ internal static class RouteStringSyntaxDetector
         }
 
         return ImmutableArray<ISymbol>.Empty;
-    }
-
-    private static ImmutableArray<IParameterSymbol> GetParameters(ISymbol? symbol)
-        => symbol switch
-        {
-            IMethodSymbol m => m.Parameters,
-            IPropertySymbol nt => nt.Parameters,
-            _ => ImmutableArray<IParameterSymbol>.Empty,
-        };
-
-    private static SyntaxNode? TryFindContainer(SyntaxToken token)
-    {
-        var node = WalkUpParentheses(GetRequiredParent(token));
-
-        // if we're inside some collection-like initializer, find the instance actually being created. 
-        if (IsAnyInitializerExpression(node.Parent, out var instance))
-        {
-            node = WalkUpParentheses(instance);
-        }
-
-        return node;
-    }
-
-    private static SyntaxNode GetRequiredParent(SyntaxToken token)
-        => token.Parent ?? throw new InvalidOperationException("Token's parent was null");
-
-    public static SyntaxNode GetRequiredParent(SyntaxNode node)
-        => node.Parent ?? throw new InvalidOperationException("Node's parent was null");
-
-    [return: NotNullIfNotNull("node")]
-    private static SyntaxNode? WalkUpParentheses(SyntaxNode? node)
-    {
-        while (IsParenthesizedExpression(node?.Parent))
-        {
-            node = node.Parent;
-        }
-
-        return node;
-    }
-
-    private static bool IsParenthesizedExpression([NotNullWhen(true)] SyntaxNode? node)
-        => node?.RawKind == (int)SyntaxKind.ParenthesizedExpression;
-
-    private static bool IsAnyInitializerExpression([NotNullWhen(true)] SyntaxNode? node, [NotNullWhen(true)] out SyntaxNode? creationExpression)
-    {
-        if (node is InitializerExpressionSyntax
-            {
-                Parent: BaseObjectCreationExpressionSyntax or ArrayCreationExpressionSyntax or ImplicitArrayCreationExpressionSyntax
-            })
-        {
-            creationExpression = node.Parent;
-            return true;
-        }
-
-        creationExpression = null;
-        return false;
-    }
-
-    public static (IMethodSymbol? Symbol, bool IsMinimal) GetTargetMethod(SyntaxToken token, SemanticModel semanticModel, CancellationToken cancellationToken)
-    {
-        if (token.Parent is not LiteralExpressionSyntax)
-        {
-            return default;
-        }
-
-        var container = TryFindContainer(token);
-        if (container is null)
-        {
-            return default;
-        }
-
-        if (container.Parent.IsKind(SyntaxKind.Argument))
-        {
-            return (FindMapMethod(semanticModel, container, cancellationToken), true);
-        }
-        else if (container.Parent.IsKind(SyntaxKind.AttributeArgument))
-        {
-            return (FindMvcMethod(semanticModel, container, cancellationToken), false);
-        }
-
-        return default;
-    }
-
-    private static IMethodSymbol? FindMvcMethod(SemanticModel semanticModel, SyntaxNode container, CancellationToken cancellationToken)
-    {
-        var argument = container.Parent;
-        if (argument.Parent is not AttributeArgumentListSyntax argumentList)
-        {
-            return null;
-        }
-
-        if (argumentList.Parent is not AttributeSyntax attribute)
-        {
-            return null;
-        }
-
-        if (attribute.Parent is not AttributeListSyntax attributeList)
-        {
-            return null;
-        }
-
-        if (attributeList.Parent is not MethodDeclarationSyntax methodDeclaration)
-        {
-            return null;
-        }
-
-        var methodSymbol = semanticModel.GetDeclaredSymbol(methodDeclaration, cancellationToken);
-
-        if (methodSymbol.ContainingType is not ITypeSymbol typeSymbol)
-        {
-            return null;
-        }
-
-        if (!MvcHelpers.IsController(typeSymbol))
-        {
-            return null;
-        }
-
-        if (!MvcHelpers.IsAction(methodSymbol))
-        {
-            return null;
-        }
-
-        return methodSymbol;
-    }
-
-    private static IMethodSymbol? FindMapMethod(SemanticModel semanticModel, SyntaxNode container, CancellationToken cancellationToken)
-    {
-        var argument = container.Parent;
-        if (argument.Parent is not BaseArgumentListSyntax argumentList ||
-            argumentList.Parent is null)
-        {
-            return null;
-        }
-
-        // Get the symbol as long if it's not null or if there is only one candidate symbol
-        var method = GetMethodInfo(semanticModel, argumentList.Parent, cancellationToken);
-
-        if (!method.Name.StartsWith("Map", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        if (method.ContainingType is not
-            {
-                Name: "EndpointRouteBuilderExtensions",
-                ContainingNamespace:
-                {
-                    Name: "Builder",
-                    ContainingNamespace:
-                    {
-                        Name: "AspNetCore",
-                        ContainingNamespace:
-                        {
-                            Name: "Microsoft",
-                            ContainingNamespace.IsGlobalNamespace: true,
-                        }
-                    }
-                }
-            })
-        {
-            return null;
-        }
-
-        var delegateArgument = method.Parameters.FirstOrDefault(a => a.Type.Name == "Delegate"
-            && a.Type.ContainingNamespace.Name == "System"
-            && (a.Type.ContainingNamespace.ContainingNamespace?.IsGlobalNamespace ?? true));
-        if (delegateArgument == null)
-        {
-            return null;
-        }
-
-        var delegateIndex = method.Parameters.IndexOf(delegateArgument);
-        if (delegateIndex >= argumentList.Arguments.Count)
-        {
-            return null;
-        }
-
-        var item = argumentList.Arguments[delegateIndex];
-
-        return GetMethodInfo(semanticModel, item.Expression, cancellationToken);
-    }
-
-    private static IMethodSymbol? GetMethodInfo(SemanticModel semanticModel, SyntaxNode syntaxNode, CancellationToken cancellationToken)
-    {
-        var delegateSymbolInfo = semanticModel.GetSymbolInfo(syntaxNode, cancellationToken);
-        var delegateSymbol = delegateSymbolInfo.Symbol;
-        if (delegateSymbol == null && delegateSymbolInfo.CandidateSymbols.Length == 1)
-        {
-            delegateSymbol = delegateSymbolInfo.CandidateSymbols[0];
-        }
-
-        return delegateSymbol as IMethodSymbol;
     }
 }

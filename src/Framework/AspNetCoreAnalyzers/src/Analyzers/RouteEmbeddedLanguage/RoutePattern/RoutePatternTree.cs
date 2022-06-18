@@ -4,11 +4,11 @@
 #nullable disable
 
 using System.Collections.Immutable;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 
 internal sealed class RoutePatternTree : EmbeddedSyntaxTree<RoutePatternKind, RoutePatternNode, RoutePatternCompilationUnit>
 {
@@ -27,7 +27,7 @@ internal sealed class RoutePatternTree : EmbeddedSyntaxTree<RoutePatternKind, Ro
 
 internal readonly struct RouteParameter
 {
-    public RouteParameter(string name, bool encodeSlashes, string? defaultValue, bool isOptional, bool isCatchAll, ImmutableArray<string> policies)
+    public RouteParameter(string name, bool encodeSlashes, string defaultValue, bool isOptional, bool isCatchAll, ImmutableArray<string> policies)
     {
         Name = name;
         EncodeSlashes = encodeSlashes;
@@ -39,7 +39,7 @@ internal readonly struct RouteParameter
 
     public readonly string Name;
     public readonly bool EncodeSlashes;
-    public readonly string? DefaultValue;
+    public readonly string DefaultValue;
     public readonly bool IsOptional;
     public readonly bool IsCatchAll;
     public readonly ImmutableArray<string> Policies;

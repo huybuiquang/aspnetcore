@@ -6,11 +6,11 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 
 using static RoutePatternHelpers;
 using RoutePatternToken = EmbeddedSyntaxToken<RoutePatternKind>;
@@ -167,7 +167,7 @@ internal partial struct RoutePatternParser
                                 part.Node.ToString(),
                                 previousParameterNode.GetChildNode(RoutePatternKind.ParameterName).ToString(),
                                 segmentPart.Node.ToString());
-                            diagnostics.Add(new EmbeddedDiagnostic(message, part.Node.GetSpan()));                            
+                            diagnostics.Add(new EmbeddedDiagnostic(message, part.Node.GetSpan()));
                         }
                     }
 
@@ -219,7 +219,7 @@ internal partial struct RoutePatternParser
                         var encodeSlashes = true;
                         string? name = null;
                         string? defaultValue = null;
-                        List<string> policies = new List<string>();
+                        var policies = new List<string>();
                         foreach (var parameterPart in parameterNode)
                         {
                             switch (parameterPart.Kind)

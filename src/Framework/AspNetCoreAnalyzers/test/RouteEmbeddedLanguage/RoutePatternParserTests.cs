@@ -12,7 +12,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.EmbeddedLanguages.VirtualChars;
@@ -21,10 +20,11 @@ using Microsoft.CodeAnalysis.EmbeddedLanguages.RegularExpressions;
 using Microsoft.CodeAnalysis.EmbeddedLanguages.VirtualChars;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using System.Reflection;
 using Xunit.Abstractions;
 using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
@@ -147,7 +147,7 @@ public partial class RoutePatternParserTests
         var sourceText = token.SyntaxTree.GetText();
         var treeAndText = (tree, sourceText);
 
-        RoutePattern routePattern = null;
+        Routing.Patterns.RoutePattern routePattern = null;
         IReadOnlyList<RoutePatternParameterPart> parsedRoutePatterns = null;
         try
         {

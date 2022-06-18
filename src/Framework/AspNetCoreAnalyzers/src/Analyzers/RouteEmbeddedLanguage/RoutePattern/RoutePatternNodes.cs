@@ -6,9 +6,9 @@
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 
 using RoutePatternNodeOrToken = EmbeddedSyntaxNodeOrToken<RoutePatternKind, RoutePatternNode>;
 using RoutePatternToken = EmbeddedSyntaxToken<RoutePatternKind>;

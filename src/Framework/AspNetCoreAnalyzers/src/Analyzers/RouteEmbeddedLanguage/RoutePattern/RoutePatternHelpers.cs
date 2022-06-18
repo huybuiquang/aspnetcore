@@ -4,10 +4,10 @@
 #nullable disable
 
 using System.Collections.Immutable;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 
 using RoutePatternToken = EmbeddedSyntaxToken<RoutePatternKind>;
 

@@ -6,7 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
 internal static class AspNetCoreVirtualCharSequenceExtensions
 {
@@ -20,14 +20,14 @@ internal static class AspNetCoreVirtualCharSequenceExtensions
         return virtualChars[virtualChars.Length - 1];
     }
 
-    public static bool Contains(this AspNetCoreVirtualCharSequence virtualChars, AspNetCoreVirtualChar @char) => IndexOf(virtualChars, @char) >= 0;
+    public static bool Contains(this AspNetCoreVirtualCharSequence virtualChars, AspNetCoreVirtualChar virtualChar) => IndexOf(virtualChars, virtualChar) >= 0;
 
-    public static int IndexOf(this AspNetCoreVirtualCharSequence virtualChars, AspNetCoreVirtualChar @char) 
+    public static int IndexOf(this AspNetCoreVirtualCharSequence virtualChars, AspNetCoreVirtualChar virtualChar) 
     {
         var index = 0;
         foreach (var ch in virtualChars)
         {
-            if (ch.DeepEquals(@char))
+            if (ch.Equals(virtualChar))
             {
                 return index;
             }
@@ -59,11 +59,6 @@ internal static class AspNetCoreVirtualCharSequenceExtensions
         object? IEnumerator.Current => this.Current;
         void IDisposable.Dispose() { }
     }
-
-    public static bool DeepEquals(this AspNetCoreVirtualChar instance, AspNetCoreVirtualChar other)
-        => instance.Value == other.Value &&
-           instance.SurrogateChar == other.SurrogateChar &&
-           instance.Span == other.Span;
 
     public static bool IsDefault(this AspNetCoreVirtualCharSequence virtualChars)
         => virtualChars.Equals(default(AspNetCoreVirtualCharSequence));

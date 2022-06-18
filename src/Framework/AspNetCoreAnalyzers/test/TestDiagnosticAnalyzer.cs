@@ -12,9 +12,9 @@ using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.Composition;
 using Microsoft.CodeAnalysis.Testing;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.LanguageServices;
 using Microsoft.CodeAnalysis.Completion;
 using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
 namespace Microsoft.AspNetCore.Analyzers;
 

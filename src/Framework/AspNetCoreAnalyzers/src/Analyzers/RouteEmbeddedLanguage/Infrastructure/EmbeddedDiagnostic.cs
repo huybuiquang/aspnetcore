@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
 internal struct EmbeddedDiagnostic : IEquatable<EmbeddedDiagnostic>
 {

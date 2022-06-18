@@ -9,6 +9,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.CSharp;
@@ -16,7 +18,7 @@ using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Tags;
 using Microsoft.CodeAnalysis.Text;
-using RoutePatternToken = Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common.EmbeddedSyntaxToken<Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePatternKind>;
+using RoutePatternToken = Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure.EmbeddedSyntaxToken<Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern.RoutePatternKind>;
 
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
@@ -227,7 +229,7 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
     private void ProvideParameterCompletions(EmbeddedCompletionContext context)
     {
-        var (method, isMinimal) = RouteStringSyntaxDetector.GetTargetMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
+        var (method, isMinimal) = EndpointMethodDetector.FindEndpointMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
         if (method != null)
         {
             var resolvedParameterSymbols = isMinimal ? ResolvedMinimalParameters(method, context.SemanticModel) : method.Parameters.As<ISymbol>();
@@ -250,9 +252,9 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
         foreach (var child in childSymbols)
         {
-            if (HasAttribute(child, "Microsoft.AspNetCore.Http.AsParametersAttribute", semanticModel))
+            if (child.HasAttribute("Microsoft.AspNetCore.Http.AsParametersAttribute", semanticModel))
             {
-                resolvedParameterSymbols.AddRange(ResolvedMinimalParameters(GetParameterType(child), semanticModel));
+                resolvedParameterSymbols.AddRange(ResolvedMinimalParameters(child.GetParameterType(), semanticModel));
             }
             else if (HasExplicitNonRouteAttribute(child, semanticModel) || HasSpecialType(child, semanticModel))
             {
@@ -266,58 +268,55 @@ public class RoutePatternCompletionProvider : CompletionProvider
         return resolvedParameterSymbols.ToImmutableArray();
     }
 
-    private static bool IsType(INamedTypeSymbol type, string typeName, SemanticModel semanticModel)
-        => SymbolEqualityComparer.Default.Equals(type, semanticModel.Compilation.GetTypeByMetadataName(typeName));
-
     private static bool HasSpecialType(ISymbol child, SemanticModel semanticModel)
     {
-        var type = GetParameterType(child) as INamedTypeSymbol;
+        var type = child.GetParameterType() as INamedTypeSymbol;
         if (type == null)
         {
             return false;
         }
 
-        if (IsType(type, typeof(CancellationToken).FullName!, semanticModel))
+        if (type.IsType(typeof(CancellationToken).FullName!, semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "Microsoft.AspNetCore.Http.HttpContext", semanticModel))
+        if (type.IsType("Microsoft.AspNetCore.Http.HttpContext", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "Microsoft.AspNetCore.Http.HttpRequest", semanticModel))
+        if (type.IsType("Microsoft.AspNetCore.Http.HttpRequest", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "Microsoft.AspNetCore.Http.HttpResponse", semanticModel))
+        if (type.IsType("Microsoft.AspNetCore.Http.HttpResponse", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "System.Security.Claims.ClaimsPrincipal", semanticModel))
+        if (type.IsType("System.Security.Claims.ClaimsPrincipal", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "Microsoft.AspNetCore.Http.IFormFileCollection", semanticModel))
+        if (type.IsType("Microsoft.AspNetCore.Http.IFormFileCollection", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "Microsoft.AspNetCore.Http.IFormFile", semanticModel))
+        if (type.IsType("Microsoft.AspNetCore.Http.IFormFile", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "System.IO.Stream", semanticModel))
+        if (type.IsType("System.IO.Stream", semanticModel))
         {
             return true;
         }
 
-        if (IsType(type, "System.IO.Pipelines.PipeReader", semanticModel))
+        if (type.IsType("System.IO.Pipelines.PipeReader", semanticModel))
         {
             return true;
         }
@@ -344,14 +343,11 @@ public class RoutePatternCompletionProvider : CompletionProvider
 
         foreach (var attributeData in child.GetAttributes())
         {
-            foreach (var interfaceType in attributeData.AttributeClass.AllInterfaces)
+            foreach (var nonRouteMetadata in allNoneRouteMetadataTypes)
             {
-                foreach (var nonRouteMetadata in allNoneRouteMetadataTypes)
+                if (attributeData.AttributeClass.Implements(nonRouteMetadata))
                 {
-                    if (SymbolEqualityComparer.Default.Equals(interfaceType, nonRouteMetadata))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
         }
@@ -359,32 +355,7 @@ public class RoutePatternCompletionProvider : CompletionProvider
         return false;
     }
 
-    private static bool HasAttribute(ISymbol child, string typeName, SemanticModel semanticModel)
-    {
-        var attributeType = semanticModel.Compilation.GetTypeByMetadataName(typeName);
-
-        foreach (var attributeData in child.GetAttributes())
-        {
-            if (SymbolEqualityComparer.Default.Equals(attributeData.AttributeClass, attributeType))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static ITypeSymbol GetParameterType(ISymbol symbol)
-    {
-        return symbol switch
-        {
-            IParameterSymbol parameterSymbol => parameterSymbol.Type,
-            IPropertySymbol propertySymbol => propertySymbol.Type,
-            _ => throw new InvalidOperationException("Unexpected symbol type: " + symbol)
-        };
-    }
-
-    private void ProvidePolicyNameCompletions(EmbeddedCompletionContext context)
+    private static void ProvidePolicyNameCompletions(EmbeddedCompletionContext context)
     {
         context.AddIfMissing("int", suffix: null, "Matches any 32-bit integer.", WellKnownTags.Keyword, parentOpt: null);
         context.AddIfMissing("bool", suffix: null, "Matches true or false. Case-insensitive.", WellKnownTags.Keyword, parentOpt: null);

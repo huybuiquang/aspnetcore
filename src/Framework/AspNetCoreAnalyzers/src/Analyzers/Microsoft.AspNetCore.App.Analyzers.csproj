@@ -21,5 +21,5 @@
     <Compile Include="$(SharedSourceRoot)IsExternalInit.cs" LinkBase="Shared" />
     <Compile Include="$(SharedSourceRoot)Roslyn\CodeAnalysisExtensions.cs" LinkBase="Shared" />
   </ItemGroup>
-  
+
 </Project>

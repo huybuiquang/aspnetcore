@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using Roslyn.Utilities;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
 internal readonly struct EmbeddedSeparatedSyntaxNodeList<TSyntaxKind, TSyntaxNode, TDerivedNode>
     where TSyntaxKind : struct

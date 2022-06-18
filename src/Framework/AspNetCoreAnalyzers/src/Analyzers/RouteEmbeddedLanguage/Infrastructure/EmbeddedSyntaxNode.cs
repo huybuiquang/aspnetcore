@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis.ExternalAccess.AspNetCore.EmbeddedLanguages;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Common;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
 /// <summary>
 /// Root of the embedded language syntax hierarchy.  EmbeddedSyntaxNodes are very similar to 

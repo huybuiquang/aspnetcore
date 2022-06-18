@@ -3,6 +3,8 @@
 
 #nullable disable
 
+using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.RoutePattern;
+
 namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
 
 internal interface IRoutePatternNodeVisitor
