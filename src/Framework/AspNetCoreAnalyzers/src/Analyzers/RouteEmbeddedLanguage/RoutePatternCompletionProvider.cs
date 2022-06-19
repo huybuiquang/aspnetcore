@@ -195,44 +195,14 @@ public class RoutePatternCompletionProvider : CompletionProvider
                 ProvideParameterCompletions(context);
                 return;
         }
-
-        // There are two major cases we need to consider in regex completion.  Specifically
-        // if we're in a character class (i.e. `[...]`) or not. In a character class, most
-        // constructs are not special (i.e. a `(` is just a paren, and not the start of a
-        // grouping construct).
-        //
-        // So first figure out if we're in a character class.  And then decide what sort of
-        // completion we want depending on the previous character.
-        //var inCharacterClass = IsInCharacterClass(context.Tree.Root, previousVirtualChar);
-        //switch (token.Kind)
-        //{
-        //    case RegexKind.BackslashToken:
-        //        ProvideBackslashCompletions(context, inCharacterClass, parent);
-        //        return;
-        //    case RegexKind.OpenBracketToken:
-        //        ProvideOpenBracketCompletions(context, inCharacterClass, parent);
-        //        return;
-        //    case RegexKind.OpenParenToken:
-        //        ProvideOpenParenCompletions(context, inCharacterClass, parent);
-        //        return;
-        //}
-
-        // see if we have ```\p{```.  If so, offer property categories. This isn't handled 
-        // in the above switch because when you just have an incomplete `\p{` then the `{` 
-        // will be handled as a normal character and won't have a token for it.
-        //if (previousVirtualChar.Value == '{')
-        //{
-        //    ProvidePolicyNameCompletions(context);
-        //    return;
-        //}
     }
 
     private void ProvideParameterCompletions(EmbeddedCompletionContext context)
     {
-        var (method, isMinimal) = EndpointMethodDetector.FindEndpointMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
+        var (method, _) = EndpointMethodDetector.FindEndpointMethod(context.StringToken, context.SemanticModel, context.CancellationToken);
         if (method != null)
         {
-            var resolvedParameterSymbols = isMinimal ? ResolvedMinimalParameters(method, context.SemanticModel) : method.Parameters.As<ISymbol>();
+            var resolvedParameterSymbols = ResolvedParameters(method, context.SemanticModel);
             foreach (var parameterSymbol in resolvedParameterSymbols)
             {
                 context.AddIfMissing(parameterSymbol.Name, suffix: null, description: null, WellKnownTags.Parameter, parentOpt: null);
@@ -240,7 +210,7 @@ public class RoutePatternCompletionProvider : CompletionProvider
         }
     }
 
-    private ImmutableArray<ISymbol> ResolvedMinimalParameters(ISymbol symbol, SemanticModel semanticModel)
+    private ImmutableArray<ISymbol> ResolvedParameters(ISymbol symbol, SemanticModel semanticModel)
     {
         var resolvedParameterSymbols = new List<ISymbol>();
         var childSymbols = symbol switch
@@ -254,7 +224,7 @@ public class RoutePatternCompletionProvider : CompletionProvider
         {
             if (child.HasAttribute("Microsoft.AspNetCore.Http.AsParametersAttribute", semanticModel))
             {
-                resolvedParameterSymbols.AddRange(ResolvedMinimalParameters(child.GetParameterType(), semanticModel));
+                resolvedParameterSymbols.AddRange(ResolvedParameters(child.GetParameterType(), semanticModel));
             }
             else if (HasExplicitNonRouteAttribute(child, semanticModel) || HasSpecialType(child, semanticModel))
             {

@@ -6,12 +6,11 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
-using Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage;
+namespace Microsoft.AspNetCore.Analyzers.RouteEmbeddedLanguage.Infrastructure;
 
 internal static class RouteStringSyntaxDetector
 {
@@ -259,10 +258,10 @@ internal static class RouteStringSyntaxDetector
             : null;
 
     private static IParameterSymbol FindParameterForArgument(SemanticModel semanticModel, SyntaxNode argument, bool allowUncertainCandidates, CancellationToken cancellationToken)
-        => DetermineParameter((ArgumentSyntax)argument, semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
+        => ((ArgumentSyntax)argument).DetermineParameter(semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
 
     private static IParameterSymbol FindParameterForAttributeArgument(SemanticModel semanticModel, SyntaxNode argument, bool allowUncertainCandidates, CancellationToken cancellationToken)
-        => DetermineParameter((AttributeArgumentSyntax)argument, semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
+        => ((AttributeArgumentSyntax)argument).DetermineParameter(semanticModel, allowUncertainCandidates, allowParams: false, cancellationToken);
 
     public static ISymbol? GetAnySymbol(SymbolInfo info)
         => info.Symbol ?? info.CandidateSymbols.FirstOrDefault();

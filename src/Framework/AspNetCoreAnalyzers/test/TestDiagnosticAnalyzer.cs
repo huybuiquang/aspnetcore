@@ -70,7 +70,7 @@ public class TestDiagnosticAnalyzerRunner : DiagnosticAnalyzerRunner
 #pragma warning disable VSTHRD011 // Use AsyncLazy<T>
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
                 var assemblies = MefHostServices.DefaultAssemblies.ToList();
-                assemblies.Add(RouteEmbeddedLanguageClassifier.TestAccessor.ExternalAccessAssembly);
+                assemblies.Add(RoutePatternClassifier.TestAccessor.ExternalAccessAssembly);
 
                 var discovery = new AttributedPartDiscovery(Resolver.DefaultInstance, isNonPublicSupported: true);
                 var parts = Task.Run(() => discovery.CreatePartsAsync(assemblies)).GetAwaiter().GetResult();
@@ -100,7 +100,7 @@ public class TestDiagnosticAnalyzerRunner : DiagnosticAnalyzerRunner
 
         Func<Workspace> createWorkspace = CreateWorkspace;
 
-        var project = DiagnosticProject.Create(testAssembly, source, createWorkspace, typeof(RouteEmbeddedLanguageClassifier));
+        var project = DiagnosticProject.Create(testAssembly, source, createWorkspace, typeof(RoutePatternClassifier));
         foreach (var assembly in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll"))
         {
             if (!project.MetadataReferences.Any(c => string.Equals(Path.GetFileNameWithoutExtension(c.Display), Path.GetFileNameWithoutExtension(assembly), StringComparison.OrdinalIgnoreCase)))
